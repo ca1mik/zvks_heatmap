@@ -1,0 +1,52 @@
+<!DOCTYPE html><html lang="ru"><head>
+<meta charset="utf-8"><title>Карта заявок</title>
+<link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css">
+<link rel="stylesheet" href="https://unpkg.com/nouislider/dist/nouislider.min.css">
+<style>body,html{margin:0;height:100%}#map{height:100%}</style>
+</head><body>
+<div id="map"></div>
+<div id="slider" style="position:fixed;top:10px;left:10px;width:300px;z-index:9999"></div>
+<div id="cats"   style="position:fixed;top:60px;left:10px;background:white;padding:6px;z-index:9999"></div>
+
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script src="https://unpkg.com/leaflet.heat/dist/leaflet-heat.js"></script>
+<script src="https://unpkg.com/leaflet.markercluster@1.5.3/dist/leaflet.markercluster.js"></script>
+<script src="https://unpkg.com/nouislider/dist/nouislider.min.js"></script>
+
+<script>
+fetch('points.geojson').then(r=>r.json()).then(data=>{
+  const map=L.map('map').setView([55.8437,48.5066],13);
+  L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png',{maxZoom:19}).addTo(map);
+  const heat=L.heatLayer([], {radius:20}).addTo(map);
+  const cluster=L.markerClusterGroup(); map.addLayer(cluster);
+
+  const dates=data.map(p=>Date.parse(p.created_at));
+  const cats=[...new Set(data.map(p=>p.category))];
+
+  const slider=document.getElementById('slider');
+  noUiSlider.create(slider,{start:[Math.min(...dates),Math.max(...dates)],
+    connect:true,range:{min:Math.min(...dates),max:Math.max(...dates)},
+    format:{to:v=>+v,from:v=>+v}});
+  slider.noUiSlider.on('update',render);
+
+  const catsDiv=document.getElementById('cats');
+  cats.forEach(c=>{const cb=document.createElement('input');
+    cb.type='checkbox';cb.value=c;cb.checked=true;cb.onchange=render;
+    catsDiv.append(cb,document.createTextNode(' '+c),document.createElement('br'));});
+
+  render();
+  function render(){
+    cluster.clearLayers();heat.setLatLngs([]);
+    const [dMin,dMax]=slider.noUiSlider.get().map(Number);
+    const active=[...catsDiv.querySelectorAll('input:checked')].map(i=>i.value);
+    data.forEach(p=>{
+      const d=Date.parse(p.created_at);
+      if(d<dMin||d>dMax||!active.includes(p.category))return;
+      const ll=[p.lat,p.lon];
+      heat.addLatLng([...ll,p['Всего']||1]);
+      cluster.addLayer(L.circleMarker(ll,{radius:6})
+        .bindPopup(`${p.Улица} ${p.Дом}<br>${p.category}<br>${p.created_at.slice(0,10)}`));
+    });
+  }
+});
+</script></body></html>

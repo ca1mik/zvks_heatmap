@@ -1,0 +1,36 @@
+name: Rebuild map daily
+
+on:
+  schedule:
+    - cron: '0 0 * * *'        # 03:00 МСК
+  workflow_dispatch:           # кнопка «Run workflow» руками
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Write service_account.json
+        run: echo "$GOOGLE_SERVICE_JSON" > service_account.json
+        env:
+          GOOGLE_SERVICE_JSON: ${{ secrets.GOOGLE_SERVICE_JSON }}
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install deps
+        run: pip install -U folium gspread gspread_dataframe oauth2client pandas geopy
+
+      - name: Run pipeline
+        run: |
+          python interactive_map_google_sheets.py --from 2000-01-01 --to $(date +%F)
+
+      - name: Publish to gh-pages
+        uses: peaceiris/actions-gh-pages@v4
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./site
